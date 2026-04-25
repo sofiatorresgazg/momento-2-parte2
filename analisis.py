@@ -1,40 +1,40 @@
-from funciones import *
+from funciones import cargar_datos, limpiar_nulos, estandarizar_texto
+import pandas as pd
 
-# Cargar archivos de la carpeta raw
-productos = cargar_datos('data/raw/productos.csv')
-ventas = cargar_datos('data/raw/ventas.csv')
+df_ventas = cargar_datos('data/raw/ventas.csv')
+df_productos = cargar_datos('data/raw/productos.csv')
 
-# --- PROCESO DE LIMPIEZA ---
-# Limpiar Productos
-productos = manejar_nulos(productos)
-productos = estandarizar_moda(productos)
-productos = limpiar_precios(productos, 'precio')
+df_ventas.columns = df_ventas.columns.str.strip().str.lower()
+df_productos.columns = df_productos.columns.str.strip().str.lower()
 
-# Limpiar Ventas
-ventas = manejar_nulos(ventas)
-ventas = estandarizar_moda(ventas) # Por si hay tallas en ventas
+df_ventas = limpiar_nulos(df_ventas)
 
-# --- COMBINACIÓN (Merge) ---
-# Unimos por 'id_producto' para saber qué se vendió y a qué precio
-df_tienda = pd.merge(ventas, productos, on='id_producto', how='inner')
+col_pago = [c for c in df_ventas.columns if 'metodo' in c or 'pago' in c][0]
+df_ventas = estandarizar_texto(df_ventas, col_pago)
 
-# Guardar los archivos limpios como te pide el proyecto
-productos.to_csv('data/processed/productos_limpios.csv', index=False)
-ventas.to_csv('data/processed/ventas_limpios.csv', index=False)
+df_productos = limpiar_nulos(df_productos)
 
 
-print(">>> ANÁLISIS DE TIENDA DE MODA <<<")
+col_v = [c for c in df_ventas.columns if 'producto' in c][0]
+col_p = [c for c in df_productos.columns if 'producto' in c or c == 'id'][0]
 
-# 1. ¿Cuál es la prenda más vendida? (Frecuencia)
-prenda_top = df_tienda['nombre_producto'].value_counts().idxmax()
-print(f"1. Prenda con más ventas: {prenda_top}")
+df_final = pd.merge(df_ventas, df_productos, left_on=col_v, right_on=col_p)
 
-# 2. ¿Cuánto dinero ingresó por cada categoría (Ej: calzado, superior)? (Agregación)
-# Nota: Ingreso = Cantidad vendida * Precio
-df_tienda['total_venta'] = df_tienda['cantidad'] * df_tienda['precio']
-ingresos_cat = df_tienda.groupby('categoria')['total_venta'].sum()
-print(f"\n2. Ingresos por categoría:\n{ingresos_cat}")
+print("\n" + "="*30)
+print("   ANALISIS COMPLETADO")
+print("="*30)
 
-# 3. ¿Cuántas ventas fueron de la categoría 'accesorios'? (Filtrado y Conteo)
-conteo_accesorios = df_tienda[df_tienda['categoria'] == 'accesorios'].shape[0]
-print(f"\n3. Cantidad de transacciones de accesorios: {conteo_accesorios}")
+if not df_final.empty:
+
+    col_cant = 'cantidad_x' if 'cantidad_x' in df_final.columns else 'cantidad'
+    col_nom = 'nombre' if 'nombre' in df_final.columns else col_p
+    
+    top = df_final.groupby(col_nom)[col_cant].sum().idxmax()
+    print(f"Producto estrella: {top}")
+
+    nequi = df_final[df_final[col_pago] == 'nequi'].shape[0]
+    print(f"Ventas por Nequi: {nequi}")
+else:
+    print("Error: Los datos no coinciden entre los archivos.")
+
+print("="*30 + "\n")
